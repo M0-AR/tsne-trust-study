@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](requirements.txt)
 [![Numbers](https://img.shields.io/badge/numbers-100%25_measured-orange.svg)](results/results.json)
 
-[🌐 Live interactive site](preview.html) · [🎓 Quiz](#-beginner-guide--read-this-and-you-are-a-professional) · [📄 Manuscript](PAPER.md) · [📊 Raw results](results/results.json)
+[🌐 Live interactive site](https://m0-ar.github.io/tsne-trust-study/) · [🎓 Quiz](https://m0-ar.github.io/tsne-trust-study/preview.html) · [📄 Manuscript](PAPER.md) · [📊 Raw results](results/results.json)
 
 ![t-SNE islands map of 600 handwritten digits](assets/hero_islands.png)
 *The actual output of this repo's from-scratch code — 10 islands, zero label input.*
@@ -267,10 +267,29 @@ ordering is recovered (compressed to ~6× by the tail).
 **Regenerate the visuals:** `python scripts/make_figures.py` → `assets/`
 (hero map, benchmark bars, size illusion, demo GIF).
 
-**Publish the interactive site (GitHub Pages):** Settings → Pages → Deploy from
-branch → branch `main`, folder `/ (root)` — then `preview.html` is live at
-`https://<user>.github.io/tsne-trust-study/preview.html`. Single self-contained
-file, no build step, works offline.
+**Open the interactive site (works on GitHub and on your clone):**
+
+| Entry | Click | Renders |
+|---|---|---|
+| 🏠 Site home | [m0-ar.github.io/tsne-trust-study/](https://m0-ar.github.io/tsne-trust-study/) | Redirects to the full interactive page |
+| 📄 Full page | [m0-ar.github.io/tsne-trust-study/preview.html](https://m0-ar.github.io/tsne-trust-study/preview.html) | Dashboard, guide, auto-graded quiz |
+| 📁 Docs copy | [m0-ar.github.io/tsne-trust-study/docs/preview.html](https://m0-ar.github.io/tsne-trust-study/docs/preview.html) | Same page, served from `/docs` source |
+
+**Publish it yourself (GitHub Pages, 1 minute):** Settings → Pages → Deploy from
+branch → branch `main`, folder `/docs` (recommended; `/ (root)` also works —
+mirrors are included for both). Wait ~1 min for the "pages build and deployment"
+Action to go green, then check all three links above render (200, not 404):
+
+```bash
+BASE="https://m0-ar.github.io/tsne-trust-study"
+for p in "" "preview.html" "docs/preview.html"; do
+  printf "%s -> " "/$p"; curl -s -o /dev/null -w "%{http_code}\n" "$BASE/$p"
+done
+# expect: 200 / 200 / 200
+```
+
+Single self-contained file, no build step, works offline. `.nojekyll` is included
+so Pages serves every asset exactly as committed.
 
 ![Interactive learning site preview](assets/site_preview.png)
 *The Pages site: dashboard, beginner guide, auto-graded quiz, user stories.*

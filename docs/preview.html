@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>t-SNE Trust Study — Which Parts of the Map Can You Trust?</title>
+<meta name="description" content="From-scratch t-SNE verification: measured benchmarks, trust rules, interactive quiz. 34 tests passing.">
+<style>
+:root{--bg:#0b1020;--card:#141b31;--ink:#e8ecf6;--mut:#9aa4c0;--acc:#5aa2ff;--ok:#3ecf8e;--warn:#ffb020;--bad:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1020px;margin:0 auto;padding:0 20px}
+.hero{padding:64px 0 30px;text-align:center}
+.hero h1{font-size:2.4rem;margin:.4em 0 .2em}
+.hero p.sub{color:var(--mut);font-size:1.15rem;max-width:760px;margin:0 auto}
+.badges{margin:18px 0}.badges span{display:inline-block;background:#1d2542;border:1px solid #2c3a63;border-radius:20px;padding:4px 14px;margin:4px;font-size:.85rem}
+.btn{display:inline-block;background:var(--acc);color:#06101f;font-weight:700;border-radius:10px;padding:12px 26px;margin:8px 6px;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--acc)}
+section.card{background:var(--card);border:1px solid #24304f;border-radius:16px;padding:28px;margin:26px 0}
+h2{margin-top:0;color:#fff}h2 .e{margin-right:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat{background:#0f1530;border:1px solid #26325a;border-radius:12px;padding:14px;text-align:center}
+.stat b{font-size:1.5rem;color:var(--ok);display:block}.stat small{color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{padding:9px 10px;border-bottom:1px solid #26325a;text-align:left}th{color:var(--mut)}
+.ok{color:var(--ok);font-weight:700}.bar{height:14px;border-radius:7px;background:linear-gradient(90deg,var(--acc),var(--ok))}
+img.hero-img{max-width:100%;border-radius:14px;border:1px solid #2c3a63;margin-top:18px}
+.quiz-q{background:#0f1530;border:1px solid #26325a;border-radius:12px;padding:16px;margin:14px 0}
+.quiz-q button{display:block;width:100%;text-align:left;background:#1a2340;color:var(--ink);border:1px solid #33406b;border-radius:9px;padding:10px 12px;margin:7px 0;cursor:pointer;font-size:.95rem}
+.quiz-q button:hover{border-color:var(--acc)}
+.quiz-q button.right{border-color:var(--ok);background:#123324}
+.quiz-q button.wrong{border-color:var(--bad);background:#3a1620}
+.explain{display:none;color:var(--mut);font-size:.9rem;margin-top:8px}
+#score{position:sticky;top:0;background:#0f1530;border:1px solid var(--acc);border-radius:12px;padding:10px 16px;margin:10px 0;font-weight:700}
+footer{color:var(--mut);text-align:center;padding:30px;font-size:.85rem}
+details{margin:8px 0}summary{cursor:pointer;font-weight:600}
+code{background:#0a0f22;padding:2px 7px;border-radius:6px;font-size:.9em}
+pre{background:#0a0f22;padding:14px;border-radius:10px;overflow-x:auto;font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hero">
+<h1>🗺️ Which Parts of a t-SNE Map Can You Trust?</h1>
+<p class="sub">A from-scratch replication study: 600 handwritten digits → islands,
+every number re-measured, 34 automated checks green, plus a live-market replication.
+Read this page and you will know more about t-SNE than most interview candidates.</p>
+<div class="badges">
+<span>📜 MIT License</span><span>✅ 34/34 tests passing</span><span>🐳 Docker ready</span>
+<span>📊 100% measured numbers</span><span>🔁 Reproducible</span>
+</div>
+<div>
+<a class="btn" href="#quiz">🎓 Take the quiz (10 questions)</a>
+<a class="btn ghost" href="#reproduce">▶ Run it yourself in 3 steps</a>
+</div>
+<img class="hero-img" src="../assets/hero_islands.png" alt="t-SNE islands map of 600 handwritten digits produced by the from-scratch implementation">
+<p style="color:var(--mut);font-size:.9rem">Above: the actual output of this repo's from-scratch code — 10 islands, zero label input. Below: the islands forming during optimization.</p>
+<img class="hero-img" src="../assets/demo.gif" alt="Animation of t-SNE islands forming over optimization steps" style="max-width:560px">
+</div>
+
+<section class="card">
+<h2><span class="e">📌</span>Summary — the 30-second version</h2>
+<p><b>t-SNE sorts pictures it has never been told about</b> because distances between similar
+pictures already encode the answer (91% of each picture's 10 nearest neighbours share its digit).
+It keeps <b>near neighbours near</b> (65.8% kept, 92.5% same-digit) using a heavy-tailed map
+kernel that solves the crowding problem (KL 0.45 vs 1.05 for Gaussian SNE).</p>
+<p><b>Trust:</b> which dots share an island. <b>Do not trust:</b> island sizes (a 9× spread gap
+maps to identical islands), gaps between islands (dice-driven: 5 seeds agree on only 4–6 of 10
+nearest islands), any single map, or KL for picking perplexity. Verified on live market data too.</p>
+</section>
+
+<section class="card">
+<h2><span class="e">🔢</span>Measured numbers dashboard</h2>
+<div class="grid">
+<div class="stat"><b>91.0%</b><small>same-digit 10NN in raw pictures</small></div>
+<div class="stat"><b>92.5%</b><small>same-digit 10NN on t-SNE map</small></div>
+<div class="stat"><b>65.8%</b><small>neighbourhoods kept (t-SNE)</small></div>
+<div class="stat"><b>0.45</b><small>final KL gap (t-SNE)</small></div>
+<div class="stat"><b>9.8×</b><small>foreign-island separation</small></div>
+<div class="stat"><b>0.98</b><small>trustworthiness</small></div>
+<div class="stat"><b>1.05→6.31</b><small>A–B–C ratio p30→p450</small></div>
+<div class="stat"><b>0.88</b><small>trust on live market data</small></div>
+</div>
+</section>
+
+<section class="card">
+<h2><span class="e">📊</span>Benchmark: what each method preserves</h2>
+<img class="hero-img" src="../assets/benchmark_bars.png" alt="Bar chart comparing high-dim pictures, MDS, Gaussian SNE and t-SNE on same-digit rate and kept neighbourhoods">
+<table>
+<tr><th>Method</th><th>Same-digit 10NN</th><th>Neighbourhoods kept</th><th>Reading</th></tr>
+<tr><td>Raw pictures (64-D)</td><td>91.0%</td><td>100%</td><td>Distances already know the digits</td></tr>
+<tr><td>MDS baseline (keep all distances)</td><td>56.1%</td><td>22.9%</td><td class="ok">Colours mix — far pairs dominate</td></tr>
+<tr><td>Gaussian SNE</td><td>80.8%</td><td>44.5%</td><td>Better, but groups touch (crowding)</td></tr>
+<tr><td><b>t-SNE (this repo)</b></td><td><b>92.5%</b></td><td><b>65.8%</b></td><td class="ok">Islands + cleaner than input</td></tr>
+</table>
+<h3>Perplexity U-curve (kept %)</h3>
+<table><tr><th>p = 2</th><th>p = 30 ✅</th><th>p = 300</th></tr>
+<tr><td>60.7% (shatters)</td><td><b>65.8%</b></td><td>48.4% (merges)</td></tr></table>
+<h3>Size illusion (measured)</h3>
+<img class="hero-img" src="../assets/size_illusion.png" alt="Tight vs loose group spreads in high dimensions versus identical island sizes on the map" style="max-width:640px">
+</section>
+
+<section class="card">
+<h2><span class="e">🌱</span>Beginner guide — read this and you are a professional</h2>
+<details open><summary>Level 0 — What is a picture to a program? (2 min)</summary>
+<p>A tiny 8×8 photo is 64 ink numbers (0 = paper, 1 = full ink). A dot on a page is just
+2 numbers (across, up). The whole job: turn 64 numbers into 2 without losing what matters —
+<b>pictures that look alike must land close together</b>.</p></details>
+<details><summary>Level 1 — How alike? Distance. (3 min)</summary>
+<p>Compare square-by-square, square each difference (sign disappears, big gaps count more),
+add up, take the square root. Two similar threes: ≈1.2. A three vs a seven: ≈2.7.
+Zero would mean identical. Each picture's 10 nearest neighbours are 91% same-digit —
+<b>the labels were never needed for sorting</b>.</p></details>
+<details><summary>Level 2 — Why "keep all distances" fails (3 min)</summary>
+<p>Three dots can all be mutually 1-apart (triangle). A fourth never fits on a flat page.
+With 600 pictures, far pairs outvote near pairs ~10:1, so the map optimizes the wrong
+thing: colours mix (56%), neighbours lost (77% gone). Measured, not opinion.</p></details>
+<details><summary>Level 3 — Shares, bells, perplexity (5 min)</summary>
+<p>Each picture hands out 100% of "neighbour shares" over a bell curve: near pictures get
+a lot, far ones ~nothing. Perplexity ≈ how many effective neighbours each picture attends
+to (we use 30). Each picture gets its own bell width (measured 0.82–1.28) via 60 rounds of
+narrow/widen. Then: pull pairs the page underrates, push pairs it overrates, 300–1000 steps.</p></details>
+<details><summary>Level 4 — Crowding and the "t" trick (5 min)</summary>
+<p>Hundreds of mid-distance pictures have no room on the page, so their tiny pulls drag
+everything to the middle (groups touch). The fix: swap the page bell for
+<code>1/(1+d²)</code> — 800× heavier tail at distance 3. Dots can sit far apart and still
+keep a real share, so non-neighbours finally move away. <b>Islands appear.</b></p></details>
+<details><summary>Level 5 — Read maps like a pro (the trust rules)</summary>
+<p>✅ Trust which dots share an island. ❌ Never trust island size (bandwidths erase it),
+gaps between islands (dice decide), a single map (vary seed + perplexity), or the KL
+score for choosing settings (it prefers worse maps — measured). You now know more than
+most interview candidates. Prove it below. 👇</p></details>
+</section>
+
+<section class="card" id="quiz">
+<h2><span class="e">🎓</span>Interactive quiz — zero to pro in 10 questions</h2>
+<div id="score">Score: 0 / 10 answered · Level: 🌱 Beginner</div>
+<div id="quizbox"></div>
+</section>
+
+<section class="card">
+<h2><span class="e">🧑‍💼</span>Who is this repo for? (user stories)</h2>
+<table>
+<tr><th>You are…</th><th>Use this repo to…</th><th>Start at</th></tr>
+<tr><td>🎓 Student / self-learner</td><td>Learn t-SNE by running real code, take the quiz, solve the A–B–C exercise</td><td>Beginner guide + quiz</td></tr>
+<tr><td>💼 Interview candidate</td><td>Answer "explain t-SNE pitfalls" with measured numbers, not buzzwords</td><td>Summary + benchmark table</td></tr>
+<tr><td>🔬 Researcher / PhD</td><td>Cite the tail diagnostic + KL finding; extend PAPER.md toward submission</td><td>PAPER.md + results.json</td></tr>
+<tr><td>📊 Data analyst</td><td>Stop misreading UMAP/t-SNE plots in reports; tune perplexity with the U-curve</td><td>Trust rules + size illusion</td></tr>
+<tr><td>📈 Finance quant</td><td>See the method work on live return windows; adapt market.py to your universe</td><td>market.py + dashboard</td></tr>
+<tr><td>👩‍🏫 Teacher</td><td>Teach dimensionality reduction with GIFs, figures and auto-graded quiz</td><td>preview.html on Pages</td></tr>
+</table>
+</section>
+
+<section class="card">
+<h2><span class="e">✨</span>Features</h2>
+<ul>
+<li>🔬 <b>From-scratch core</b> (NumPy only): distances, perplexity search, SNE, t-SNE, MDS, 8 trust metrics</li>
+<li>✅ <b>34 automated verification tests</b> — every claim is a runnable check</li>
+<li>📊 <b>Measured benchmarks</b> vs the classic narrative, with honest deltas documented</li>
+<li>🎞️ <b>Demo GIF + figures</b> generated from real output, never hand-drawn</li>
+<li>📈 <b>Live-market replication</b> (Yahoo Finance, offline fallback for CI)</li>
+<li>🎓 <b>Interactive quiz + beginner guide</b> (this page) — zero to pro</li>
+<li>🐳 <b>One-command Docker reproduction</b> + GitHub Pages site (this page)</li>
+<li>📄 <b>PhD-draft manuscript</b> (<code>PAPER.md</code>) with two novel observations</li>
+</ul>
+</section>
+
+<section class="card" id="reproduce">
+<h2><span class="e">▶</span>Run it yourself — 3 steps, ~10 minutes</h2>
+<pre>git clone &lt;your-fork-url&gt; &amp;&amp; cd tsne-trust-study
+docker compose up            # fast study → ./results/
+docker compose --profile tests run tests   # 34 checks</pre>
+<p>Without Docker: <code>pip install -r requirements.txt &amp;&amp; pytest -q &amp;&amp; python scripts/run_all.py</code>.
+Full 1000-iteration scale: <code>docker compose --profile full run full</code>.</p>
+<h3>🌐 Publish this page with GitHub Pages</h3>
+<p>Settings → Pages → Deploy from branch → branch <code>main</code>, folder <code>/ (root)</code> —
+this <code>preview.html</code> becomes your live site (e.g.
+<code>https://&lt;user&gt;.github.io/tsne-trust-study/preview.html</code>). No build step: it is a
+single self-contained file (vanilla JS, inline styles, no external dependencies).</p>
+</section>
+
+<footer>MIT License · All numbers measured by repo code · results/results.json · 2026</footer>
+</div>
+
+<script>
+const Q=[
+["A picture for the program is…",["64 ink numbers (8×8 grid)","A filename and a label","2 numbers: x and y","A neural network"],"64 ink numbers (8×8 grid)","Each of the 64 squares is one number (0=paper, 1=ink). A map dot is only 2 numbers — that compression must lose something."],
+["Two similar threes measured ≈1.2 apart; a three vs seven ≈2.7. Why square the differences?",["To make numbers bigger","So sign disappears and big gaps count much more","Because Hinton said so","To save memory"],"So sign disappears and big gaps count much more","Squaring removes sign and punishes large ink differences far more than small ones."],
+["Why does 'keep ALL distances' fail on a flat page?",["Flat pages can't show colour","Far pairs outnumber near pairs ~10:1 and dictate the layout","Computers are too slow","Digits have too few pixels"],"Far pairs outnumber near pairs ~10:1 and dictate the layout","Measured: MDS keeps only 22.9% of neighbourhoods and colours mix (56.1%)."],
+["Perplexity 30 roughly means…",["30 optimization steps","Each picture attends to ~30 effective neighbours","The map has 30 islands","30 digits per island"],"Each picture attends to ~30 effective neighbours","Formally 2^entropy of the neighbour distribution; each picture gets its own bell width."],
+["What is the crowding problem?",["Too many dots on the page","Mid-distance pictures have no room in 2-D, so tiny pulls drag everything central","The GPU runs out of memory","Islands get too big"],"Mid-distance pictures have no room in 2-D, so tiny pulls drag everything central","~300 mid-distance pictures each pull a little; together they crush groups against each other."],
+["The 't' trick is…",["Using 1000 iterations","Swapping the page bell for the heavy tail 1/(1+d²)","Labelling the data first","Running PCA twice"],"Swapping the page bell for the heavy tail 1/(1+d²)","At distance 3 the new curve is ~800× higher, so far dots keep a real share and move away. Islands appear."],
+["A 9× spread difference (tight vs loose groups) maps to…",["9× different islands","Identical islands — size is erased by bandwidth adaptation","An error message","30 islands"],"Identical islands — size is erased by bandwidth adaptation","Measured: 0.131/1.174 → 0.637/0.645. Never read island size."],
+["Five random restarts agree on the nearest island for…",["10 of 10 digits","Only 4–6 of 10 digits, while 83% of point neighbours persist","0 digits","All islands merge"],"Only 4–6 of 10 digits, while 83% of point neighbours persist","Trust shared islands, not island placement. Always vary the seed."],
+["Pure noise + perplexity 2 shows clumps. Best detector?",["The median 10th/1st ratio","The TAIL (mean/p90) of the ratio — medians average clumps away","The KL gap","The legend colours"],"The TAIL (mean/p90) of the ratio — medians average clumps away","Measured p90: 11.37 (p=2) vs 8.87 (p=30). A novel diagnostic from this repo."],
+["Can the KL gap pick the best perplexity?",["Yes, lowest KL wins","No — measured p=300 has lower KL (0.21 vs 0.45) yet keeps fewer neighbours","Only on Tuesdays","Yes with early exaggeration"],"No — measured p=300 has lower KL (0.21 vs 0.45) yet keeps fewer neighbours","Never use the objective to select hyperparameters. Sweep and check stability."]
+];
+let score=0, done=0;
+const box=document.getElementById('quizbox'), sc=document.getElementById('score');
+Q.forEach((q,i)=>{
+  const d=document.createElement('div');d.className='quiz-q';
+  d.innerHTML='<b>Q'+(i+1)+'. '+q[0]+'</b>';
+  const exp=document.createElement('div');exp.className='explain';exp.textContent='💡 '+q[3];
+  q[1].forEach(opt=>{
+    const b=document.createElement('button');b.textContent=opt;
+    b.onclick=()=>{
+      if(d.dataset.lock)return;d.dataset.lock=1;done++;
+      if(opt===q[2]){b.classList.add('right');score++;}else{b.classList.add('wrong');
+        [...d.querySelectorAll('button')].forEach(x=>{if(x.textContent===q[2])x.classList.add('right')});}
+      exp.style.display='block';
+      const lvl=done<4?'🌱 Beginner':done<7?'🌿 Intermediate':done<10?'🌳 Advanced':'🏆 t-SNE Pro';
+      sc.textContent='Score: '+score+' / '+done+' answered · Level: '+lvl+(done===10?' — You now read t-SNE maps like a researcher! 🎉':'');
+    };
+    d.appendChild(b);
+  });
+  d.appendChild(exp);box.appendChild(d);
+});
+</script>
+</body>
+</html>
