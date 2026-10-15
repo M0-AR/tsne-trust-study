@@ -1,7 +1,119 @@
-# Which Parts of a t-SNE Map Can You Trust? A From-Scratch Verification Study
+<div align="center">
 
-> Every number below is **measured by code in this repo** — nothing is
-> hand-claimed. Run `docker compose up` (or `pytest` + `python scripts/run_all.py`)
+# 🗺️ Which Parts of a t-SNE Map Can You Trust?
+
+**A from-scratch verification study: 600 handwritten digits → islands, every number re-measured, 34 checks green, live-market replication — plus an interactive site that takes you from zero to pro.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-34%2F34_passing-brightgreen.svg)](tests/test_trust.py)
+[![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](docker-compose.yml)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](requirements.txt)
+[![Numbers](https://img.shields.io/badge/numbers-100%25_measured-orange.svg)](results/results.json)
+
+[🌐 Live interactive site](preview.html) · [🎓 Quiz](#-beginner-guide--read-this-and-you-are-a-professional) · [📄 Manuscript](PAPER.md) · [📊 Raw results](results/results.json)
+
+![t-SNE islands map of 600 handwritten digits](assets/hero_islands.png)
+*The actual output of this repo's from-scratch code — 10 islands, zero label input.*
+
+![Islands forming during optimization](assets/demo.gif)
+*Watch the islands form: the same code, snapshotted every 10 steps.*
+
+</div>
+
+## ⚡ Quick start (3 steps, ~10 minutes)
+
+```bash
+git clone <your-fork-url> && cd tsne-trust-study
+docker compose up                          # fast study → ./results/results.json
+docker compose --profile tests run tests   # 34 verification checks
+```
+
+No Docker? `pip install -r requirements.txt && pytest -q && python scripts/run_all.py`
+
+## 📌 Summary — the 30-second version
+
+**t-SNE sorts pictures it has never been told about** because distances between similar
+pictures already encode the answer: 91% of each picture's 10 nearest neighbours share its
+digit. It keeps **near neighbours near** (65.8% kept, 92.5% same-digit) with a heavy-tailed
+map kernel that solves the crowding problem (KL 0.45 vs 1.05 for Gaussian SNE).
+**Trust** which dots share an island. **Do not trust** island sizes (a 9× spread gap maps
+to identical islands), gaps between islands (dice-driven), any single map, or the KL score
+for picking settings. Same rules verified on 160 **live** market-return windows.
+
+## 📚 Contents
+
+- [🌱 Beginner guide](#-beginner-guide--read-this-and-you-are-a-professional) · [🧑‍💼 Who is this for](#-who-is-this-repo-for) · [✨ Features](#-features)
+- [📊 Benchmarks](#3-benchmark-video-claim-vs-our-measurement) · [✅ Trust rules](#4-trust-rules-each-backed-by-a-test) · [🔬 Findings](#5-two-findings-worth-a-paper-of-their-own)
+- [📈 Live market](#6-live-market-replication-real-money-same-rules) · [▶ Reproduce](#7-reproduce) · [❓ FAQ](#-faq) · [🤝 Contributing](#-contributing) · [📄 License](#-license)
+
+## 🌱 Beginner guide — read this and you are a professional
+
+You will know more than most interview candidates. Let's work this out in a
+step-by-step way to be sure we have the right answer.
+
+**Step 0 — What is a picture to a program?** A tiny 8×8 photo is 64 ink numbers
+(0 = empty paper, 1 = full ink). A dot on a page is just 2 numbers (how far across,
+how far up). The whole job: turn 64 numbers into 2 without losing what matters —
+*pictures that look alike must land close together.*
+
+**Step 1 — How alike? Distance.** Compare square-by-square, square each difference
+(the sign disappears and big gaps count much more), add up, undo the squaring with a
+square root. Measured live: two similar threes ≈ 1.20 apart, the same three vs a seven
+≈ 2.69. Each picture's 10 nearest neighbours are 91% same-digit — **the program never
+sees labels, yet the distances already know the digits.**
+
+**Step 2 — Why "keep all distances" fails.** Three dots can all be mutually 1-apart
+(a triangle) — but a fourth never fits on a flat page, while 65 pictures fit in 64
+dimensions. With 600 pictures, far pairs outvote near pairs ~10:1, so the map optimizes
+the wrong thing. Measured: colours mix (56.1%), 77% of neighbourhoods lost.
+
+**Step 3 — Shares, bells, perplexity.** Each picture hands out 100% of "neighbour
+shares" over a bell curve: near pictures get a lot, far ones almost nothing.
+*Perplexity* (≈30 here) sets how many effective neighbours each picture attends to;
+each picture gets its own bell width (measured 0.82–1.28) found by 60 rounds of
+narrow-or-widen. Then one rule, hundreds of steps: **pull pairs the page underrates,
+push pairs it overrates.**
+
+**Step 4 — Crowding and the "t" trick.** Hundreds of mid-distance pictures have no room
+on the page, so their tiny pulls drag everything to the middle and groups touch. The fix:
+swap the page bell for the heavy tail `1/(1+d²)` — at distance 3 it is ~800× higher than
+the bell, so far dots keep a real share and move away. **Islands appear.** That Student-t
+curve is the **T** in t-SNE.
+
+**Step 5 — Read maps like a pro.** ✅ Trust which dots share an island. ❌ Never trust
+island size, gaps between islands, a single map, or the KL score for settings. Now prove
+it: take the [10-question quiz](preview.html) — score 10/10 and you read t-SNE maps like
+a researcher.
+
+## 🧑‍💼 Who is this repo for
+
+| You are… | Use this repo to… | Start at |
+|---|---|---|
+| 🎓 Student / self-learner | Learn t-SNE by running real code, take the quiz, solve the A–B–C exercise | Beginner guide + `preview.html` |
+| 💼 Interview candidate | Answer "explain t-SNE pitfalls" with measured numbers, not buzzwords | Summary + benchmark table |
+| 🔬 Researcher / PhD | Cite the tail diagnostic + KL finding; extend `PAPER.md` toward submission | `PAPER.md` + `results/results.json` |
+| 📊 Data analyst | Stop misreading embedding plots in reports; tune perplexity with the U-curve | Trust rules + size illusion |
+| 📈 Finance quant | See the method work on live return windows; adapt `market.py` to your universe | `src/tsne_trust/market.py` |
+| 👩‍🏫 Teacher | Teach dimensionality reduction with GIFs, figures and an auto-graded quiz | `preview.html` on GitHub Pages |
+
+## ✨ Features
+
+| Feature | What you get |
+|---|---|
+| 🔬 From-scratch core (NumPy only) | Distances, perplexity search, SNE, t-SNE, MDS, 8 trust metrics — no black boxes |
+| ✅ 34 automated verification tests | Every claim in this file is a runnable check (`tests/test_trust.py`) |
+| 📊 Measured benchmarks | Claim-by-claim table vs the classic narrative, honest deltas documented |
+| 🎞️ Demo GIF + figures | Generated from real output (`scripts/make_figures.py`), never hand-drawn |
+| 📈 Live-market replication | 160 real Yahoo Finance windows; offline fallback keeps CI green |
+| 🎓 Interactive learning site | `preview.html`: guide, dashboard, 10-question auto-graded quiz, zero dependencies |
+| 🐳 One-command reproduction | `docker compose up` → results; Pages-ready static site |
+| 📄 Manuscript draft | `PAPER.md`: abstract-to-references, two novel observations |
+
+---
+
+## Full study (every number measured — nothing hand-claimed)
+
+> Run `docker compose up` (or `pytest` + `python scripts/run_all.py`)
 > to reproduce all of it. See `results/results.json` for the raw machine output.
 
 **Research questions.** (1) How can a program that never sees digit labels sort
@@ -151,6 +263,46 @@ pip install -r requirements.txt && pytest -q && python scripts/run_all.py
 perplexity 30 parks all non-neighbours on the heavy-tail ring (equal map
 gaps); perplexity 450 makes attraction span the data so the 10× high-dim
 ordering is recovered (compressed to ~6× by the tail).
+
+**Regenerate the visuals:** `python scripts/make_figures.py` → `assets/`
+(hero map, benchmark bars, size illusion, demo GIF).
+
+**Publish the interactive site (GitHub Pages):** Settings → Pages → Deploy from
+branch → branch `main`, folder `/ (root)` — then `preview.html` is live at
+`https://<user>.github.io/tsne-trust-study/preview.html`. Single self-contained
+file, no build step, works offline.
+
+![Interactive learning site preview](assets/site_preview.png)
+*The Pages site: dashboard, beginner guide, auto-graded quiz, user stories.*
+
+## ❓ FAQ
+
+**Do I need a GPU?** No. The whole study runs on CPU in ~10 minutes (fast mode).
+
+**Why do your numbers differ slightly from the video (e.g. MDS error 51% vs 28%)?**
+Different-but-principled choices (closed-form classical MDS vs their iterative stress
+optimizer; 300 vs 1000 steps). Every delta is documented next to the number — the
+verdicts all agree. That honesty is the point.
+
+**Can I use this on my own data?** Yes: replace `load_digits600()` with your matrix
+(any `n×d` array) and rerun. For finance data, adapt `src/tsne_trust/market.py`.
+
+**Which perplexity should *I* use?** Don't pick one — sweep 5–50 (or ~1% of n for
+large data), vary the seed, and trust only what persists. Never pick by KL (see §5).
+
+**Is UMAP better?** Different trade-off: faster, better global structure, same local
+cautions. The trust rules here (sizes, gaps, seeds, tails) apply to it too.
+
+## 🤝 Contributing
+
+Issues and PRs welcome: new trust trials (e.g. UMAP side-by-side), new live datasets,
+quiz questions, figure ideas. Keep the rule: **no number without a test** — add your
+claim to `tests/test_trust.py` and `results/results.json` via `scripts/run_all.py`.
+
+## 📄 License
+
+MIT — see [LICENSE](LICENSE). If this repo helps your paper, please cite it and the
+original t-SNE paper [1].
 
 ## References
 [1] van der Maaten & Hinton, JMLR 9:2579–2605, 2008. [2] Hinton & Roweis,

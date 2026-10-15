@@ -34,12 +34,14 @@ def _kl(P, Q):
     return float(np.sum(P * np.log(P / Q)))
 
 
-def _optimize(P, n, seed, n_iter, lr, ee_steps, ee_alpha, Qfn, grad_fn, log_every=50):
+def _optimize(P, n, seed, n_iter, lr, ee_steps, ee_alpha, Qfn, grad_fn, log_every=50,
+              capture_every=0):
     rng = np.random.default_rng(seed)
     Y = rng.normal(0, 1e-4, (n, 2))
     vel = np.zeros_like(Y)
     mom_switch = 250
     gaps = {}
+    traj = []  # optional Y snapshots for animations; off by default
     for t in range(1, n_iter + 1):
         Peff = P * (ee_alpha if t <= ee_steps else 1.0)
         if t <= ee_steps:
@@ -54,7 +56,11 @@ def _optimize(P, n, seed, n_iter, lr, ee_steps, ee_alpha, Qfn, grad_fn, log_ever
         Y = Y - Y.mean(0)
         if t in (50, 100, n_iter) or t % log_every == 0:
             gaps[t] = _kl(P, Q)
+        if capture_every and (t % capture_every == 0 or t == 1):
+            traj.append(Y.copy())
     Q, _ = Qfn(Y)
+    if capture_every:
+        return Y, _kl(P, Q), gaps, np.array(traj)
     return Y, _kl(P, Q), gaps
 
 
@@ -69,7 +75,8 @@ def run_sne(P, seed=0, n_iter=1000, lr=200.0, ee_steps=50, ee_alpha=4.0):
     return _optimize(P, n, seed, n_iter, lr, ee_steps, ee_alpha, _Q_gauss, grad)
 
 
-def run_tsne(P, seed=0, n_iter=1000, lr=200.0, ee_steps=50, ee_alpha=4.0):
+def run_tsne(P, seed=0, n_iter=1000, lr=200.0, ee_steps=50, ee_alpha=4.0,
+               capture_every=0):
     n = P.shape[0]
 
     def grad(Pe, Q, Y, D2):
@@ -77,4 +84,5 @@ def run_tsne(P, seed=0, n_iter=1000, lr=200.0, ee_steps=50, ee_alpha=4.0):
         np.fill_diagonal(W, 0.0)
         return (W.sum(1)[:, None] * Y - W @ Y)
 
-    return _optimize(P, n, seed, n_iter, lr, ee_steps, ee_alpha, _Q_student, grad)
+    return _optimize(P, n, seed, n_iter, lr, ee_steps, ee_alpha, _Q_student, grad,
+                     capture_every=capture_every)
