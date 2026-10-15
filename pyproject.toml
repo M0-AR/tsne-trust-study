@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tsne-trust-study"
+version = "1.0.0"
+description = "From-scratch verification of t-SNE islands: what to trust (neighbors) and what not to (sizes, gaps, single maps)"
+requires-python = ">=3.10"
+dependencies = ["numpy", "scikit-learn", "scipy", "pandas", "matplotlib", "pyyaml", "requests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

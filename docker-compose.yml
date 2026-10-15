@@ -1,0 +1,16 @@
+services:
+  study:
+    build: .
+    volumes:
+      - ./results:/work/results
+    command: python scripts/run_all.py --fast
+  full:
+    build: .
+    volumes:
+      - ./results:/work/results
+    profiles: ["full"]
+    command: python scripts/run_all.py
+  tests:
+    build: .
+    profiles: ["tests"]
+    command: pytest -q
